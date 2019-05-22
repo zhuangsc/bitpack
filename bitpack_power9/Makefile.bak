@@ -1,0 +1,31 @@
+## Power9 makefile
+
+CC = xlc_r
+CPP = xlc++_r
+NVCC = nvcc
+
+PREFIX = ./float32
+SO = bit_packer.so
+OBJ_GPU = bit_packer.cu.o
+SRC_GPU = $(PREFIX)/bit_packer.cu.cc
+SRC_CPU = $(PREFIX)/bit_packer.cc
+POWER_FLAGS=-O3 -qsmp=omp -qipa -qnostrict -qhot -qmaxmem=-1 -qthreaded -qalign=linuxppc -qsimd -qaltivec -q64 -qarch=pwr9 -qtune=pwr9 -qsmp=omp -qipa -qnostrict
+GCC_FLAGS=-mabi=altivec -fopenmp -maltivec -mcpu=power9 
+TF_LIB=$(shell python -c 'import tensorflow as tf; print(tf.sysconfig.get_lib())')
+TF_INC=./include
+#TF_INC=$(shell python -c "import tensorflow; print(tensorflow.sysconfig.get_include())")
+
+$(SO) : $(SRC_CPU) $(OBJ_GPU)
+	$(CPP) -std=c++11 -shared $(POWER_FLAGS) -o $@ $^ -I$(TF_INC) -I./float32 -L${TF_LIB} -ltensorflow_framework -fPIC -lcudart -D __OPENMP__ #-D_GLIBCXX_USE_CXX11_ABI=0
+
+$(OBJ_GPU) : $(SRC_GPU)
+	$(NVCC) -std=c++11 -c $^ -I$(TF_INC) -x cu -Xcompiler -fPIC -o $@ -DGOOGLE_CUDA=1 --expt-relaxed-constexpr #-D_GLIBCXX_USE_CXX11_ABI=0
+
+.PHONY: clean
+
+clean:
+	rm -f *.so *.o
+
+## IBM xlc 
+#xlc_r -O3 -qhot  -qmaxmem=-1 -qthreaded -qalign=linuxppc -qthreaded -qsimd -qaltivec -q64 -qarch=pwr9 -qtune=pwr9 -o avx avx128_ibm2.c
+#-D_GLIBCXX_USE_CXX11_ABI=0
